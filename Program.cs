@@ -19,23 +19,24 @@ namespace TestDLL
             string testFunctionsFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestFunctions");
             Directory.CreateDirectory(testFunctionsFolder);
 
-            // Zapisanie DLL z funkcją testową
-            string funDLL = @"C:\Users\evake\Desktop\RastriginFunctionLibrary.dll";
-            string destinationPathFun = Path.Combine(testFunctionsFolder, Path.GetFileName(funDLL));
+            // Zapisanie DLL z funkcją testową do katalogu TestFunctions
+            string testFunctionDLL = @"C:\Users\evake\Desktop\RastriginFunctionLibrary.dll";
+            string testFunctionPath = Path.Combine(testFunctionsFolder, Path.GetFileName(testFunctionDLL));
 
-            if (File.Exists(destinationPathFun))
+            if (File.Exists(testFunctionPath))
             {
-                File.Copy(funDLL, destinationPathFun, true);
-                Console.WriteLine($"Plik {Path.GetFileName(destinationPathFun)} został nadpisany.");
+                File.Copy(testFunctionDLL, testFunctionPath, true);
+                Console.WriteLine($"Plik {Path.GetFileName(testFunctionPath)} został nadpisany.");
             }
             else
             {
-                File.Copy(funDLL, destinationPathFun);
-                Console.WriteLine($"Plik {Path.GetFileName(destinationPathFun)} został skopiowany.");
+                File.Copy(testFunctionDLL, testFunctionPath);
+                Console.WriteLine($"Plik {Path.GetFileName(testFunctionPath)} został skopiowany.");
             }
 
-            // Wczytanie DLL z funkcjami testowymi z katalogu TestFunctions
-            List<ITestFunction> testFunctions = LoadTestFunctions(testFunctionsFolder, dim);
+            // Wczytanie funkcji testowych z plików DLL z katalogu TestFunctions
+            //TODO: wczytanie tylko podanych funkcji testowych
+            List<object> testFunctions = LoadTestFunctions(testFunctionsFolder, dim);
 
             if (testFunctions.Any())
             {
@@ -43,7 +44,12 @@ namespace TestDLL
 
                 foreach (var testFunction in testFunctions)
                 {
-                    Console.WriteLine($"Nazwa: {testFunction.Name}, Dim: {testFunction.Dim}");
+                    var name = testFunction.GetType().GetProperty("Name").GetValue(testFunction);
+                    //var dimension = testFunction.GetType().GetProperty("Dim").GetValue(testFunction);
+                    //var xmin = testFunction.GetType().GetProperty("Xmin").GetValue(testFunction);
+                    //var xmax = testFunction.GetType().GetProperty("Xmax").GetValue(testFunction);
+
+                    Console.WriteLine($"Nazwa: {name}");
                 }
             }
             else
@@ -51,66 +57,65 @@ namespace TestDLL
                 Console.WriteLine("Brak funkcji testowych do załadowania.");
             }
 
-            string algDLL = @"C:\Users\evake\Desktop\SnakeOptimizationLibrary.dll";
-            string algFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "OptimizationAlgorithms"); // Katalog "Algorithms" w katalogu, w którym uruchomiona jest aplikacja
-            Directory.CreateDirectory(algFolder);
+            string optimizationAlgorithmsFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "OptimizationAlgorithms");
+            Directory.CreateDirectory(optimizationAlgorithmsFolder);
 
-            string algPath = Path.Combine(algFolder, Path.GetFileName(algDLL));
+            string optimizationAlgorithmDLL = @"C:\Users\evake\Desktop\SnakeOptimizationLibrary.dll";
 
-            if (File.Exists(algPath))
+            string optimizationAlgorithmPath = Path.Combine(optimizationAlgorithmsFolder, Path.GetFileName(optimizationAlgorithmDLL));
+
+            if (File.Exists(optimizationAlgorithmPath))
             {
-                File.Copy(algDLL, algPath, true);
-                Console.WriteLine($"Plik {Path.GetFileName(algPath)} został nadpisany.");
+                File.Copy(optimizationAlgorithmDLL, optimizationAlgorithmPath, true);
+                Console.WriteLine($"Plik {Path.GetFileName(optimizationAlgorithmPath)} został nadpisany.");
             }
             else
             {
-                File.Copy(algDLL, algPath);
-                Console.WriteLine($"Plik {Path.GetFileName(algPath)} został skopiowany.");
+                File.Copy(optimizationAlgorithmDLL, optimizationAlgorithmPath);
+                Console.WriteLine($"Plik {Path.GetFileName(optimizationAlgorithmPath)} został skopiowany.");
             }
 
-            var algAssembly = Assembly.LoadFile(algPath);
+            // Wczytanie agorytmu optymizacyjnego z pliku SnakeOptimizationLibrary.dll z katalogu OptimizationAlgorithms
+            //TODO: wczytanie wybranego algorytmu
 
-            Type[] algTypesInNamespace = algAssembly.GetTypes()
-            .Where(t => String.Equals(t.Namespace, "SnakeOptimizationLibrary", StringComparison.Ordinal))
-            .ToArray();
+            var assembly = Assembly.LoadFile(optimizationAlgorithmPath);
 
-            Type algType = algTypesInNamespace
-                .FirstOrDefault(t => t.GetInterfaces().Contains(typeof(IOptimizationAlgorithm)));
+            var types = assembly.GetTypes();
 
-            if (algType != null)
+            var delegateFunction = assembly.GetType("Function");
+
+            foreach (var type in types)
             {
-                IOptimizationAlgorithm objAlgorithm = (IOptimizationAlgorithm)Activator.CreateInstance(algType);
+                if (type.IsClass && !type.IsAbstract && !typeof(Delegate).IsAssignableFrom(type))
+                {
+                    Console.WriteLine(type.FullName);
+                    TestOptimizationAlgorithm.RunTests(T, N, type, testFunctions, delegateFunction);
+                }
             }
-            else
-            {
-                Console.WriteLine("Nie znaleziono klasy implementującej interfejs IOptimizationAlgorithm w danej przestrzeni nazw.");
-            }
-
-            var algorithm = algAssembly.GetType("SnakeOptimizationLibrary.SnakeOptimization");
-
-            TestOptimizationAlgorithm.RunTests(T, N, algorithm, testFunctions);
 
             Console.Read();
         }
 
-        static List<ITestFunction> LoadTestFunctions(string folderPath, int dim)
+        static List<object> LoadTestFunctions(string folderPath, int dim)
         {
-            List<ITestFunction> testFunctions = new List<ITestFunction>();
+            List<object> testFunctions = new List<object>();
 
             string[] dllFiles = Directory.GetFiles(folderPath, "*.dll");
 
             foreach (var dllFile in dllFiles)
             {
-                var asm = Assembly.LoadFile(dllFile);
+                var assembly = Assembly.LoadFile(dllFile);
 
-                Type[] typesInNamespace = asm.GetTypes()
-                    .Where(t => t.GetInterfaces().Contains(typeof(ITestFunction)))
-                    .ToArray();
+                var types = assembly.GetTypes();
 
-                foreach (var functionType in typesInNamespace)
+                foreach (var type in types)
                 {
-                    ITestFunction testFunction = (ITestFunction)Activator.CreateInstance(functionType, dim);
-                    testFunctions.Add(testFunction);
+                    if (type.IsClass && !type.IsAbstract)
+                    {
+                        var instance = Activator.CreateInstance(type, dim);
+
+                        testFunctions.Add(instance);
+                    }
                 }
             }
 

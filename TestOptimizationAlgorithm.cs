@@ -2,18 +2,19 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using CsvHelper;
 using CsvHelper.Configuration;
 
+//delegate double Function(params double[] x);
+
 namespace TestDLL
 {
-    delegate double Function(params double[] x);
-
     public class TestOptimizationAlgorithm
     {
-        public static void RunTests(int[] T, int[] N, Type optimizationAlgorithmType, List<ITestFunction> testFunctions)
+        public static void RunTests(int[] T, int[] N, Type optimizationAlgorithmType, List<object> testFunctions, Type delegateFunction)
         {
             string reportFilePath = "report.csv";
 
@@ -21,55 +22,64 @@ namespace TestDLL
 
             foreach (var testFunction in testFunctions)
             {
+                var testFunctionName = testFunction.GetType().GetProperty("Name").GetValue(testFunction);
+                var dimension = testFunction.GetType().GetProperty("Dim").GetValue(testFunction);
+                int dim = (int)dimension;
+                var xmin = testFunction.GetType().GetProperty("Xmin").GetValue(testFunction);
+                var xmax = testFunction.GetType().GetProperty("Xmax").GetValue(testFunction);
+                var calculateMethodInfo = testFunction.GetType().GetMethod("Calculate");
+                var calculate = Delegate.CreateDelegate(delegateFunction, testFunction, calculateMethodInfo);
+
                 foreach (var t in T)
                 {
                     foreach (var n in N)
                     {
-                        //var optimizationAlgorithm = Activator.CreateInstance(optimizationAlgorithmType, );
-
-                        //var algMethod = algorithm.GetMethod("Solve");
-
-                        IOptimizationAlgorithm optimizationAlgorithm = CreateOptimizationAlgorithmInstance(
+                        var optimizationAlgorithm = Activator.CreateInstance(
                             optimizationAlgorithmType,
-                            testFunction.Calculate,
-                            testFunction.Dim,
-                            testFunction.Xmin,
-                            testFunction.Xmax,
                             n,
-                            t
+                            t,
+                            calculate,
+                            dim,
+                            xmin,
+                            xmax
                             );
 
-                        double[,] bestData = new double[testFunction.Dim + 1, 10];
+                        var optimizationAlgorithmName = optimizationAlgorithm.GetType().GetProperty("Name").GetValue(optimizationAlgorithm);
+                        var XBest = (double[])optimizationAlgorithm.GetType().GetProperty("XBest").GetValue(optimizationAlgorithm);
+                        var FBest = optimizationAlgorithm.GetType().GetProperty("FBest").GetValue(optimizationAlgorithm);
+                        var NumberOfEvaluationFitnessFunction = (int)optimizationAlgorithm.GetType().GetProperty("NumberOfEvaluationFitnessFunction").GetValue(optimizationAlgorithm);
+                        var solve = optimizationAlgorithm.GetType().GetMethod("Solve");
+                        Console.WriteLine($"Name: {optimizationAlgorithmName}");
+
+                        double[,] bestData = new double[dim + 1, 10];
                         int numberOfEvaluationFitnessFunction = 0;
                         string executionTime = "";
 
                         for (int i = 0; i < 10; i++)
                         {
-                            double fBest;
-
                             var watch = System.Diagnostics.Stopwatch.StartNew();
-                            fBest = optimizationAlgorithm.Solve();
+                            var fBest = (double)solve.Invoke(optimizationAlgorithm, new object[] {});
                             watch.Stop();
 
                             var elapsedMs = watch.ElapsedMilliseconds;
                             executionTime = elapsedMs.ToString();
 
-                            for (int j = 0; j < testFunction.Dim; j++)
+                            for (int j = 0; j < dim; j++)
                             {
-                                bestData[j, i] = optimizationAlgorithm.XBest[j];
+                                bestData[j, i] = XBest[j];
                             }
 
-                            bestData[testFunction.Dim, i] = fBest;
-                            numberOfEvaluationFitnessFunction = optimizationAlgorithm.NumberOfEvaluationFitnessFunction;
+                            bestData[dim, i] = fBest;
+                            numberOfEvaluationFitnessFunction = NumberOfEvaluationFitnessFunction;
                         }
 
-                        double minFunction = bestData[testFunction.Dim, 0];
+                        double minFunction = bestData[dim, 0];
                         int minFunction_index = 0;
                         for (int i = 1; i < 10; i++)
                         {
-                            if (bestData[testFunction.Dim, i] < minFunction)
+                            if (bestData[dim, i] < minFunction)
                             {
-                                minFunction = bestData[testFunction.Dim, i];
+                                minFunction = bestData[dim, i];
                                 minFunction_index = i;
                             }
                         }
@@ -78,7 +88,7 @@ namespace TestDLL
 
                         for (int i = 0; i < 10; i++)
                         {
-                            allMinFunction[i] = bestData[testFunction.Dim, i];
+                            allMinFunction[i] = bestData[dim, i];
                         }
 
                         double avgForFunction = allMinFunction.Average();
@@ -91,16 +101,16 @@ namespace TestDLL
                             varCoeffForFunction = 0;
 
 
-                        double[] minParameters = new double[testFunction.Dim];
-                        for (int i = 0; i < testFunction.Dim; i++)
+                        double[] minParameters = new double[dim];
+                        for (int i = 0; i < dim; i++)
                             minParameters[i] = bestData[i, minFunction_index];
 
                         string str_minParameters = "(" + string.Join("; ", minParameters) + ")";
 
-                        double[] stdDevForParameters = new double[testFunction.Dim];
-                        double[] varCoeffForParameters = new double[testFunction.Dim];
+                        double[] stdDevForParameters = new double[dim];
+                        double[] varCoeffForParameters = new double[dim];
 
-                        for (int i = 0; i < testFunction.Dim; i++)
+                        for (int i = 0; i < dim; i++)
                         {
                             double[] parameters = new double[10];
                             for (int j = 0; j < 10; j++)
@@ -126,9 +136,9 @@ namespace TestDLL
 
                         TestResult testResult = new TestResult
                         {
-                            Algorytm = optimizationAlgorithm.Name,
-                            FunkcjaTestowa = testFunction.Name,
-                            LiczbaSzukanychParametrów = testFunction.Dim,
+                            Algorytm = optimizationAlgorithmName.ToString(),
+                            FunkcjaTestowa = testFunctionName.ToString(),
+                            LiczbaSzukanychParametrów = dim,
                             LiczbaIteracji = t,
                             RozmiarPopulacji = n,
                             ZnalezioneMinimum = str_minParameters,
@@ -150,16 +160,6 @@ namespace TestDLL
             {
                 csv.WriteRecords(testResults);
             }
-        }
-
-        private static IOptimizationAlgorithm CreateOptimizationAlgorithmInstance(Type algorithmType, Function function, 
-            int dim, double[] xmin, double[] xmax, int populationSize, int numberOfIterations)
-        {
-            var constructor = algorithmType.GetConstructor(new[] { typeof(int), typeof(int), typeof(Function), typeof(int), typeof(double[]), typeof(double[]) });
-
-            var optimizationAlgorithm = (IOptimizationAlgorithm)constructor.Invoke(new object[] { populationSize, numberOfIterations, function, dim, xmin, xmax });
-
-            return optimizationAlgorithm;
         }
     }
 }
