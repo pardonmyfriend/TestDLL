@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -45,32 +46,30 @@ namespace TestDLL
                             );
 
                         var optimizationAlgorithmName = optimizationAlgorithm.GetType().GetProperty("Name").GetValue(optimizationAlgorithm);
-                        var XBest = (double[])optimizationAlgorithm.GetType().GetProperty("XBest").GetValue(optimizationAlgorithm);
-                        var FBest = optimizationAlgorithm.GetType().GetProperty("FBest").GetValue(optimizationAlgorithm);
-                        var NumberOfEvaluationFitnessFunction = (int)optimizationAlgorithm.GetType().GetProperty("NumberOfEvaluationFitnessFunction").GetValue(optimizationAlgorithm);
+                        var numberOfEvaluationFitnessFunction = (int)optimizationAlgorithm.GetType().GetProperty("NumberOfEvaluationFitnessFunction").GetValue(optimizationAlgorithm);
                         var solve = optimizationAlgorithm.GetType().GetMethod("Solve");
-                        Console.WriteLine($"Name: {optimizationAlgorithmName}");
 
                         double[,] bestData = new double[dim + 1, 10];
-                        int numberOfEvaluationFitnessFunction = 0;
                         string executionTime = "";
 
                         for (int i = 0; i < 10; i++)
                         {
                             var watch = System.Diagnostics.Stopwatch.StartNew();
-                            var fBest = (double)solve.Invoke(optimizationAlgorithm, new object[] {});
+                            var FBest = (double)solve.Invoke(optimizationAlgorithm, new object[] {});
                             watch.Stop();
 
                             var elapsedMs = watch.ElapsedMilliseconds;
                             executionTime = elapsedMs.ToString();
+
+                            var XBest = (double[])optimizationAlgorithm.GetType().GetProperty("XBest").GetValue(optimizationAlgorithm);
+                            numberOfEvaluationFitnessFunction = (int)optimizationAlgorithm.GetType().GetProperty("NumberOfEvaluationFitnessFunction").GetValue(optimizationAlgorithm);
 
                             for (int j = 0; j < dim; j++)
                             {
                                 bestData[j, i] = XBest[j];
                             }
 
-                            bestData[dim, i] = fBest;
-                            numberOfEvaluationFitnessFunction = NumberOfEvaluationFitnessFunction;
+                            bestData[dim, i] = FBest;
                         }
 
                         double minFunction = bestData[dim, 0];
@@ -105,7 +104,7 @@ namespace TestDLL
                         for (int i = 0; i < dim; i++)
                             minParameters[i] = bestData[i, minFunction_index];
 
-                        string str_minParameters = "(" + string.Join("; ", minParameters) + ")";
+                        string str_minParameters = "(" + string.Join(", ", minParameters.Select(d => d.ToString("F5", CultureInfo.InvariantCulture))) + ")";
 
                         double[] stdDevForParameters = new double[dim];
                         double[] varCoeffForParameters = new double[dim];
@@ -131,8 +130,8 @@ namespace TestDLL
                             varCoeffForParameters[i] = varCoeff;
                         }
 
-                        string str_stdDevForParameters = "(" + string.Join("; ", stdDevForParameters) + ")";
-                        string str_varCoeffForParameters = "(" + string.Join("; ", varCoeffForParameters) + ")";
+                        string str_stdDevForParameters = "(" + string.Join(", ", stdDevForParameters.Select(d => d.ToString("F5", CultureInfo.InvariantCulture))) + ")";
+                        string str_varCoeffForParameters = "(" + string.Join(", ", varCoeffForParameters.Select(d => d.ToString("F5", CultureInfo.InvariantCulture))) + ")";
 
                         TestResult testResult = new TestResult
                         {
@@ -143,8 +142,8 @@ namespace TestDLL
                             RozmiarPopulacji = n,
                             ZnalezioneMinimum = str_minParameters,
                             OdchylenieStandardowePoszukiwanychParametrów = str_stdDevForParameters,
-                            WartośćFunkcjiCelu = minFunction,
-                            OdchylenieStandardoweWartościFunkcjiCelu = stdDevForFunction,
+                            WartośćFunkcjiCelu = minFunction.ToString("F5", CultureInfo.InvariantCulture),
+                            OdchylenieStandardoweWartościFunkcjiCelu = stdDevForFunction.ToString("F5", CultureInfo.InvariantCulture),
                             LiczbaWywołańFunkcjiCelu = numberOfEvaluationFitnessFunction,
                             CzasEgzekucji = executionTime
                         };

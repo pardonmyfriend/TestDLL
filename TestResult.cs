@@ -15,8 +15,8 @@ namespace TestDLL
         public int RozmiarPopulacji { get; set; }
         public string ZnalezioneMinimum { get; set; }
         public string OdchylenieStandardowePoszukiwanychParametrów { get; set; }
-        public double WartośćFunkcjiCelu { get; set; }
-        public double OdchylenieStandardoweWartościFunkcjiCelu { get; set; }
+        public string WartośćFunkcjiCelu { get; set; }
+        public string OdchylenieStandardoweWartościFunkcjiCelu { get; set; }
         public int LiczbaWywołańFunkcjiCelu { get; set; }
         public string CzasEgzekucji { get; set; }
     }
